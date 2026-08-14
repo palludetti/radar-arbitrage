@@ -38,3 +38,7 @@ Cada oportunidade pode conter:
 ## Regra operacional
 
 O Radar prioriza margem real, liquidez, autenticidade, condição e custo total. Preço anunciado ou desconto sobre MSRP não é tratado como oportunidade por si só.
+
+## Deploy
+
+O projeto está conectado à Vercel. Cada push na branch `main` dispara automaticamente um novo deploy de produção.
