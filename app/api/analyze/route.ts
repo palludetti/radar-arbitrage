@@ -256,7 +256,7 @@ async function analyzeWithAI(url: string, page: PageContext, images: File[], fal
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify({
-      model: process.env.RADAR_AI_MODEL || "openai/gpt-5.4",
+      model: process.env.RADAR_AI_MODEL || "openai/gpt-5.6-sol",
       input: [{ role: "user", content }],
       reasoning: { effort: "low" },
       max_output_tokens: 1200,
