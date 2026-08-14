@@ -256,9 +256,8 @@ async function analyzeWithAI(url: string, page: PageContext, images: File[], fal
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify({
-      model: process.env.RADAR_AI_MODEL || "openai/gpt-5.6-sol",
+      model: process.env.RADAR_AI_MODEL || "alibaba/qwen3.5-flash",
       input: [{ role: "user", content }],
-      reasoning: { effort: "low" },
       max_output_tokens: 1200,
       text: { format: { type: "json_schema", name: "radar_listing_extract", strict: true, schema } },
     }),
