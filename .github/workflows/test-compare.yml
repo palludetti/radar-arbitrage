@@ -11,6 +11,7 @@ jobs:
     steps:
       - name: Call production compare API
         run: |
+          # rerun after Qwen tool-choice fix
           sleep 5
           curl -sS --fail-with-body -X POST 'https://radar-arbitrage.vercel.app/api/compare' \
             -H 'content-type: application/json' \
