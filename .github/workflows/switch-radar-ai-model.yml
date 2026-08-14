@@ -1,0 +1,41 @@
+name: Switch Radar AI model
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/switch-radar-ai-model.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch production analyzer
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/api/analyze/route.ts')
+          s = p.read_text()
+          old_model = 'process.env.RADAR_AI_MODEL || "openai/gpt-5.6-sol"'
+          new_model = 'process.env.RADAR_AI_MODEL || "alibaba/qwen3.5-flash"'
+          if old_model not in s:
+              raise SystemExit('Expected GPT-5.6 Sol default not found')
+          s = s.replace(old_model, new_model)
+          s = s.replace('      reasoning: { effort: "low" },\n', '')
+          p.write_text(s)
+          Path('app/api/ai-health/route.ts').unlink(missing_ok=True)
+          Path('.github/workflows/switch-radar-ai-model.yml').unlink(missing_ok=True)
+          PY
+      - name: Commit final fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Use free-tier vision model for Radar smart import"
+          git push origin main
