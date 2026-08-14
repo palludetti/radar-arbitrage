@@ -1,0 +1,44 @@
+name: Seed curated opportunity
+
+on:
+  push:
+    paths:
+      - 'data/seed_curated_opportunity.json'
+
+permissions:
+  contents: write
+
+jobs:
+  append:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Append curated opportunity
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const seedPath = 'data/seed_curated_opportunity.json';
+          const dataPath = 'data/radar_arbitrage_import_2026-08-14.json';
+          if (!fs.existsSync(seedPath)) process.exit(0);
+          const seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+          const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+          data.opportunities ||= [];
+          const idx = data.opportunities.findIndex((item) => item.id === seed.id);
+          if (idx >= 0) data.opportunities[idx] = { ...data.opportunities[idx], ...seed };
+          else data.opportunities.push(seed);
+          fs.writeFileSync(dataPath, JSON.stringify(data, null, 2) + '\n');
+          fs.unlinkSync(seedPath);
+          NODE
+      - name: Commit seeded record
+        run: |
+          git config user.name "radar-arbitrage-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/radar_arbitrage_import_2026-08-14.json data/seed_curated_opportunity.json || true
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Add curated Charizard opportunity"
+          git push
