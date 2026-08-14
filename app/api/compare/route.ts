@@ -72,12 +72,13 @@ function buildQuery(payload: MarketPayload) {
     : "A referência exata não foi confirmada; procure apenas comparáveis muito próximos e deixe clara a incerteza.";
 
   return [
+    "USE OBRIGATORIAMENTE a ferramenta perplexity_search antes de responder. Não responda apenas de memória.",
     `Pesquise preços atuais e vendas realizadas de ${item || category}.`,
     exactness,
     "Priorize Brasil e preços em reais. Para relógios, diferencie referência exata de modelos apenas parecidos e considere originalidade/estado.",
     "Para cartas Pokémon, diferencie carta exata, idioma, edição, número e graduação; PSA/CGC/BGS e raw não são equivalentes.",
     "Priorize vendas concluídas quando existirem; depois anúncios ativos. Evite MSRP/preço de tabela como comparável de revenda.",
-    "Retorne fontes com preços concretos, data/estado quando disponível e URL da página.",
+    "Busque fontes com preços concretos, data/estado quando disponível e URL da página.",
   ].join(" ");
 }
 
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
           searchLanguageFilter: ["pt", "en"],
         }),
       },
-      toolChoice: { type: "tool", toolName: "perplexity_search" },
+      maxOutputTokens: 250,
     });
 
     const sources = search.toolResults
