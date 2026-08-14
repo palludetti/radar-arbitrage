@@ -216,12 +216,12 @@ async function analyzeWithAI(url: string, page: PageContext, images: File[], fal
   if (!token) return { ...fallback, warnings: [...fallback.warnings, "IA sem credencial disponível no runtime; usei leitura básica."] };
 
   const content: any[] = [{
-    type: "text",
+    type: "input_text",
     text: `Você extrai dados factuais de anúncios para o Radar Arbitrage.\n\nREGRAS:\n- Não estime valor de mercado, revenda, autenticidade, IAO, IAM, ICE ou lucro.\n- Não invente referência/modelo. Se não estiver legível ou explícito, deixe model vazio.\n- askingPrice é o preço ATUAL pedido pelo vendedor. Ignore preço riscado, MSRP, parcelas, cashback e cupom, a menos que seja claramente o preço final atual.\n- seller é somente o nome/identificador do anunciante se estiver explícito.\n- notes deve registrar apenas fatos úteis visíveis: funcionamento alegado, caixa/manual, pulseira, defeitos declarados, revisão alegada, referência gravada etc. Diferencie "alegado" de "visível".\n- confidence vai de 0 a 100 por campo.\n- Se houver conflito entre texto e imagem, registre em warnings.\n\nURL: ${url || "não informado"}\nPlataforma inferida pelo endereço: ${fallback.sourcePlatform || "não identificada"}\nTítulo da página: ${page.title || "indisponível"}\nDescrição da página: ${page.description || "indisponível"}\nTrecho da página: ${page.text || "indisponível"}\nAviso de captura: ${page.fetchWarning || "nenhum"}`,
   }];
 
   for (const image of images) {
-    content.push({ type: "image_url", image_url: { url: await fileToDataUrl(image), detail: "high" } });
+    content.push({ type: "input_image", image_url: await fileToDataUrl(image), detail: "high" });
   }
 
   const schema = {
@@ -257,7 +257,7 @@ async function analyzeWithAI(url: string, page: PageContext, images: File[], fal
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify({
       model: process.env.RADAR_AI_MODEL || "openai/gpt-5.4",
-      input: [{ type: "message", role: "user", content }],
+      input: [{ role: "user", content }],
       reasoning: { effort: "low" },
       max_output_tokens: 1200,
       text: { format: { type: "json_schema", name: "radar_listing_extract", strict: true, schema } },
