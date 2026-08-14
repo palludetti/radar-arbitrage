@@ -1,0 +1,43 @@
+name: Fix Responses API input
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-responses-input.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch multimodal Responses API payload
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const p = 'app/api/analyze/route.ts';
+          let s = fs.readFileSync(p, 'utf8');
+          const pairs = [
+            ['type: "text",', 'type: "input_text",'],
+            ['content.push({ type: "image_url", image_url: { url: await fileToDataUrl(image), detail: "high" } });', 'content.push({ type: "input_image", image_url: await fileToDataUrl(image), detail: "high" });'],
+            ['input: [{ type: "message", role: "user", content }],', 'input: [{ role: "user", content }],'],
+          ];
+          for (const [from, to] of pairs) {
+            if (!s.includes(from)) throw new Error(`Expected source not found: ${from}`);
+            s = s.replace(from, to);
+          }
+          fs.writeFileSync(p, s);
+          NODE
+      - name: Remove one-off workflow
+        run: rm .github/workflows/fix-responses-input.yml
+      - name: Commit hotfix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/analyze/route.ts .github/workflows/fix-responses-input.yml
+          git commit -m "Fix multimodal Responses API payload"
+          git push
