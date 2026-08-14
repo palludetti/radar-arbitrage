@@ -11,9 +11,9 @@ jobs:
     steps:
       - name: Call production compare API
         run: |
-          # rerun after Qwen tool-choice fix
+          # rerun after search optimization
           sleep 5
-          curl -sS --fail-with-body -X POST 'https://radar-arbitrage.vercel.app/api/compare' \
+          curl -sS --max-time 100 --fail-with-body -X POST 'https://radar-arbitrage.vercel.app/api/compare' \
             -H 'content-type: application/json' \
             --data '{"category":"Cartas / Pokémon","brand":"Pokémon","model":"Charizard TG03/TG30 Lost Origin PSA 9","askingPrice":700,"fees":0,"sourcePlatform":"Enjoei","seller":"fabio","notes":"Anúncio alega PSA 9; validar certificado.","extractionConfidence":{"brand":100,"model":90,"askingPrice":100}}' \
             -o /tmp/compare.json
