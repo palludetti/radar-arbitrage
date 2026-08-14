@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     additionalProperties: false,
   };
 
-  const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2m8kAAAAASUVORK5CYII=";
+  const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGP8//8/AymAiSTVoxpGNQwpDQBVbQMdPVIhQwAAAABJRU5ErkJggg==";
 
   const response = await fetch("https://ai-gateway.vercel.sh/v1/responses", {
     method: "POST",
