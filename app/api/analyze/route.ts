@@ -211,9 +211,9 @@ function outputText(result: any) {
   return "";
 }
 
-async function analyzeWithAI(url: string, page: PageContext, images: File[], fallback: Analysis): Promise<Analysis> {
-  const token = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
-  if (!token) return fallback;
+async function analyzeWithAI(url: string, page: PageContext, images: File[], fallback: Analysis, runtimeOidcToken: string | null): Promise<Analysis> {
+  const token = process.env.AI_GATEWAY_API_KEY || runtimeOidcToken || process.env.VERCEL_OIDC_TOKEN;
+  if (!token) return { ...fallback, warnings: [...fallback.warnings, "IA sem credencial disponível no runtime; usei leitura básica."] };
 
   const content: any[] = [{
     type: "text",
@@ -264,7 +264,11 @@ async function analyzeWithAI(url: string, page: PageContext, images: File[], fal
     }),
   });
 
-  if (!response.ok) return { ...fallback, warnings: [...fallback.warnings, `IA indisponível (${response.status}); usei leitura básica da página.`] };
+  if (!response.ok) {
+    const gatewayError = (await response.text()).slice(0, 800);
+    console.warn("Radar AI Gateway error", response.status, gatewayError);
+    return { ...fallback, warnings: [...fallback.warnings, `IA indisponível (${response.status}); usei leitura básica da página.`] };
+  }
   const result = await response.json();
   const text = outputText(result);
   if (!text) return { ...fallback, warnings: [...fallback.warnings, "A IA não retornou dados estruturados; usei leitura básica."] };
@@ -310,7 +314,8 @@ export async function POST(request: Request) {
     const canonicalUrl = parsedUrl?.href || "";
     const page = await fetchPage(parsedUrl);
     const fallback = heuristic(canonicalUrl, page);
-    const result = await analyzeWithAI(canonicalUrl, page, files, fallback);
+    const runtimeOidcToken = request.headers.get("x-vercel-oidc-token");
+    const result = await analyzeWithAI(canonicalUrl, page, files, fallback, runtimeOidcToken);
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao analisar o anúncio.";
