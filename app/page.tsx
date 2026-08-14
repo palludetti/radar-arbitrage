@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import newPayload from "../data/radar_arbitrage_import_2026-08-14.json";
+import SmartImport from "./SmartImport";
 
 type Opportunity = {
   id: string;
@@ -127,6 +128,7 @@ export default function Page() {
   const [items,setItems] = useState<Opportunity[]>([]); const [weights,setWeights] = useState<Weights>(defaultWeights); const [loading,setLoading] = useState(true);
   const [search,setSearch] = useState(""); const [category,setCategory] = useState("Todas"); const [maxPrice,setMaxPrice] = useState(""); const [minScore,setMinScore] = useState("0"); const [sort,setSort] = useState("score"); const [view,setView] = useState("all");
   const [showImport,setShowImport] = useState(false); const [showNew,setShowNew] = useState(false); const [notice,setNotice] = useState("");
+  const newFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     try {
@@ -172,7 +174,7 @@ export default function Page() {
       </section><p className="data-note">O GitHub é a base versionada; o navegador preserva ajustes e registros manuais até eles serem promovidos para o repositório.</p>
     </div>
     {showImport && <Modal title="Colar análise do chat" onClose={()=>setShowImport(false)}><p className="import-copy">Cole um registro JSON ou um lote com <code>opportunities</code>.</p><form onSubmit={importJson}><Field label="JSON da análise"><textarea name="json" rows={13} required autoFocus placeholder='{"brand":"Seiko","model":"8229-5019","askingPrice":330,"url":"https://..."}'/></Field><ModalActions onClose={()=>setShowImport(false)} submit="Importar para o Radar"/></form></Modal>}
-    {showNew && <Modal title="Nova oportunidade" onClose={()=>setShowNew(false)} large><form onSubmit={createItem}><div className="form-grid"><Text name="brand" label="Marca *" required/><Text name="model" label="Modelo / Referência *" required/><Text name="category" label="Categoria" defaultValue="Relógio"/><Text name="sourcePlatform" label="Fonte / Plataforma"/><Text name="seller" label="Vendedor"/><Text name="url" label="URL" type="url"/><Num name="askingPrice" label="Preço pedido"/><Num name="fees" label="Frete + taxas" defaultValue="0"/><Num name="maxPurchase" label="Compra máxima"/><Num name="quickResale" label="Revenda rápida"/><Num name="likelyResale" label="Revenda provável"/><Num name="iao" label="IAO (0–100)"/><Num name="iam" label="IAM (0–100)"/><Num name="ice" label="ICE (0–100)"/><Text name="verdict" label="Veredito" defaultValue="EM ESTUDO"/><Text name="status" label="Status" defaultValue="Aprofundar"/><label className="field wide"><span>Observações</span><textarea name="notes" rows={4}/></label></div><ModalActions onClose={()=>setShowNew(false)} submit="Salvar no Radar"/></form></Modal>}
+    {showNew && <Modal title="Nova oportunidade" onClose={()=>setShowNew(false)} large><form ref={newFormRef} onSubmit={createItem}><SmartImport formRef={newFormRef}/><div className="form-grid"><Text name="brand" label="Marca *" required/><Text name="model" label="Modelo / Referência *" required/><Text name="category" label="Categoria" defaultValue="Relógio"/><Text name="sourcePlatform" label="Fonte / Plataforma"/><Text name="seller" label="Vendedor"/><Num name="askingPrice" label="Preço pedido"/><Num name="fees" label="Frete + taxas" defaultValue="0"/><Num name="maxPurchase" label="Compra máxima"/><Num name="quickResale" label="Revenda rápida"/><Num name="likelyResale" label="Revenda provável"/><Num name="iao" label="IAO (0–100)"/><Num name="iam" label="IAM (0–100)"/><Num name="ice" label="ICE (0–100)"/><Text name="verdict" label="Veredito" defaultValue="EM ESTUDO"/><Text name="status" label="Status" defaultValue="Aprofundar"/><label className="field wide"><span>Observações</span><textarea name="notes" rows={4}/></label></div><ModalActions onClose={()=>setShowNew(false)} submit="Salvar no Radar"/></form></Modal>}
   </main>;
 }
 
