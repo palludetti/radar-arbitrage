@@ -97,11 +97,14 @@ const rules: Rule[] = [
 const defaultWeights: Weights = { iao:50, iam:30, ice:20 };
 const storageKey = "radar-arbitrage-vercel-v2";
 const linkStorageKey = "radar-arbitrage-link-overrides-v1";
+const removedStorageKey = "radar-arbitrage-removed-seed-ids-v1";
 const money = new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL", maximumFractionDigits:0 });
 
 function n(v: unknown): number | null { if (v === null || v === undefined || v === "") return null; const x = Number(v); return Number.isFinite(x) ? x : null; }
 function s(v: unknown, fallback=""): string { return typeof v === "string" ? v.trim() : fallback; }
 function readLinkOverrides(): LinkOverrides { try { const raw=localStorage.getItem(linkStorageKey); return raw ? JSON.parse(raw) as LinkOverrides : {}; } catch { return {}; } }
+function readRemovedIds() { try { const raw=localStorage.getItem(removedStorageKey); return new Set<string>(raw ? JSON.parse(raw) : []); } catch { return new Set<string>(); } }
+function writeRemovedIds(ids: Set<string>) { localStorage.setItem(removedStorageKey, JSON.stringify(Array.from(ids))); }
 function normalize(raw: Partial<Opportunity>, fallbackId: string): Opportunity {
   const askingPrice = n(raw.askingPrice); const fees = n(raw.fees) ?? 0; const totalCost = n(raw.totalCost) ?? (askingPrice === null ? null : askingPrice + fees);
   const likelyResale = n(raw.likelyResale); const grossMargin = n(raw.grossMargin) ?? (likelyResale === null || totalCost === null ? null : likelyResale - totalCost);
@@ -114,6 +117,15 @@ function normalize(raw: Partial<Opportunity>, fallbackId: string): Opportunity {
 const baseOpportunities: Opportunity[] = baseRows.map((e) => normalize({ id:e[0], category:e[1], brand:e[2], model:e[3], sourcePlatform:e[4], seller:e[5], askingPrice:e[6], fees:e[7], totalCost:e[8], maxPurchase:e[9], quickResale:e[10], likelyResale:e[11], grossMargin:e[12], roiGross:e[13], liquidity:e[14], condition:e[15], originality:e[16], completeness:e[17], iao:e[18], iam:e[19], ice:e[20], radarScore:e[21], authGate:e[22], capitalGate:e[23], verdict:e[24], status:e[25], notes:e[26], url:e[27], validated:validatedIds.has(e[0]), origin:"master_v1", createdAt:"2026-08-11T00:00:00Z" }, e[0]));
 const repoOpportunities = (newPayload.opportunities as Partial<Opportunity>[]).map((x, i) => normalize(x, `RA-${String(29+i).padStart(3,"0")}`));
 const repoSeed = [...baseOpportunities, ...repoOpportunities];
+const repoSeedIds = new Set(repoSeed.map((item) => item.id));
+
+function nextOpportunityNumber(local: Opportunity[]) {
+  const ids = [...repoSeedIds, ...local.map((item) => item.id), ...readRemovedIds()];
+  return ids.reduce((max, id) => {
+    const match = /^RA-(\d+)$/.exec(id);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
+}
 
 function mergeRepoSeed(local: Opportunity[]) {
   const byId = new Map(local.map(x => [x.id, x]));
@@ -136,7 +148,10 @@ export default function Page() {
       const legacy = localStorage.getItem("radar-arbitrage-vercel-v1");
       const parsed = saved ? JSON.parse(saved) : legacy ? JSON.parse(legacy) : null;
       const overrides = readLinkOverrides();
-      const merged = mergeRepoSeed(parsed?.opportunities ?? []).map(item => Object.prototype.hasOwnProperty.call(overrides,item.id) ? { ...item, url:typeof overrides[item.id] === "string" || overrides[item.id] === null ? overrides[item.id] : item.url } : item);
+      const removedIds = readRemovedIds();
+      const merged = mergeRepoSeed(parsed?.opportunities ?? [])
+        .filter((item) => !removedIds.has(item.id))
+        .map(item => Object.prototype.hasOwnProperty.call(overrides,item.id) ? { ...item, url:typeof overrides[item.id] === "string" || overrides[item.id] === null ? overrides[item.id] : item.url } : item);
       setItems(merged); setWeights(parsed?.weights ?? defaultWeights);
       localStorage.setItem(storageKey, JSON.stringify({ opportunities:merged, sellers, rules, weights:parsed?.weights ?? defaultWeights }));
     } finally { setLoading(false); }
@@ -154,10 +169,10 @@ export default function Page() {
 
   function exportJson(){ const blob=new Blob([JSON.stringify({opportunities:items,sellers,rules,weights},null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`radar-arbitrage-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href); }
   function saveWeights(){ localStorage.setItem(storageKey,JSON.stringify({opportunities:items,sellers,rules,weights})); setNotice("Pesos salvos neste navegador."); }
-  function remove(id:string){ if(confirm(`Remover ${id}?`)){ persist(items.filter(x=>x.id!==id)); setNotice(`${id} removido.`); } }
+  function remove(id:string){ if(confirm(`Remover ${id}?`)){ if(repoSeedIds.has(id)){ const removed=readRemovedIds(); removed.add(id); writeRemovedIds(removed); } persist(items.filter(x=>x.id!==id)); setNotice(`${id} removido deste navegador.`); } }
   function editLink(id:string){ const current=items.find(x=>x.id===id); if(!current) return; const answer=prompt(`Link de ${current.brand} ${current.model}`,current.url??""); if(answer===null) return; const raw=answer.trim(); let url:string|null=null; if(raw){ try { const parsed=new URL(raw); if(!["http:","https:"].includes(parsed.protocol)) throw new Error("protocol"); url=parsed.href; } catch { setNotice("Link inválido. Use um endereço começando com http:// ou https://."); return; } } const overrides=readLinkOverrides(); overrides[id]=url; localStorage.setItem(linkStorageKey,JSON.stringify(overrides)); persist(items.map(x=>x.id===id?{...x,url,updatedAt:new Date().toISOString()}:x)); setNotice(url?`Link de ${id} salvo.`:`Link de ${id} removido.`); }
-  function importJson(e:FormEvent<HTMLFormElement>){ e.preventDefault(); const data=new FormData(e.currentTarget); try { const text=String(data.get("json")||"").trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,""); const obj=JSON.parse(text); const list=Array.isArray(obj)?obj:obj.opportunities?obj.opportunities:[obj]; const existing=new Set(items.map(x=>x.id)); let max=items.reduce((m,x)=>{const z=/^RA-(\d+)$/.exec(x.id);return z?Math.max(m,Number(z[1])):m},0); const added=(list as Partial<Opportunity>[]).map((x,i)=>normalize(x,`RA-${String(max+i+1).padStart(3,"0")}`)).filter(x=>!existing.has(x.id)); persist([...added,...items]); setShowImport(false); setNotice(`${added.length} registro(s) importado(s).`); } catch { setNotice("JSON inválido."); } }
-  function createItem(e:FormEvent<HTMLFormElement>){ e.preventDefault(); const fd=new FormData(e.currentTarget); const raw:Record<string,unknown>={}; for(const [k,v] of fd.entries()) raw[k]=["askingPrice","fees","maxPurchase","quickResale","likelyResale","liquidity","condition","originality","completeness","iao","iam","ice"].includes(k)?n(v):String(v).trim(); const max=items.reduce((m,x)=>{const z=/^RA-(\d+)$/.exec(x.id);return z?Math.max(m,Number(z[1])):m},0); const item=normalize(raw as Partial<Opportunity>,`RA-${String(max+1).padStart(3,"0")}`); persist([item,...items]); setShowNew(false); setNotice(`${item.id} salvo.`); }
+  function importJson(e:FormEvent<HTMLFormElement>){ e.preventDefault(); const data=new FormData(e.currentTarget); try { const text=String(data.get("json")||"").trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,""); const obj=JSON.parse(text); const list=Array.isArray(obj)?obj:obj.opportunities?obj.opportunities:[obj]; const existing=new Set(items.map(x=>x.id)); const firstId=nextOpportunityNumber(items); const added=(list as Partial<Opportunity>[]).map((x,i)=>normalize(x,`RA-${String(firstId+i).padStart(3,"0")}`)).filter(x=>!existing.has(x.id)); persist([...added,...items]); setShowImport(false); setNotice(`${added.length} registro(s) importado(s).`); } catch { setNotice("JSON inválido."); } }
+  function createItem(e:FormEvent<HTMLFormElement>){ e.preventDefault(); const fd=new FormData(e.currentTarget); const raw:Record<string,unknown>={}; for(const [k,v] of fd.entries()) raw[k]=["askingPrice","fees","maxPurchase","quickResale","likelyResale","liquidity","condition","originality","completeness","iao","iam","ice"].includes(k)?n(v):String(v).trim(); const item=normalize(raw as Partial<Opportunity>,`RA-${String(nextOpportunityNumber(items)).padStart(3,"0")}`); persist([item,...items]); setShowNew(false); setNotice(`${item.id} salvo.`); }
 
   return <main>
     <header className="topbar"><div className="brand"><div className="brand-mark">RA</div><div><strong>Radar Arbitrage</strong><span>Base operacional privada</span></div></div><div className="top-actions"><button className="button ghost" onClick={exportJson}>↓ Exportar</button><button className="button secondary" onClick={()=>setShowImport(true)}>↳ Colar do chat</button><button className="button primary" onClick={()=>setShowNew(true)}>＋ Novo anúncio</button></div></header>

@@ -42,3 +42,13 @@ O Radar prioriza margem real, liquidez, autenticidade, condição e custo total.
 ## Deploy
 
 O projeto está conectado à Vercel. Cada push na branch `main` dispara automaticamente um novo deploy de produção.
+
+## Verificação
+
+- `npm test` valida os gates de decisão sem depender do mercado ao vivo.
+- `npm run build` executa a verificação completa do Next.js e TypeScript.
+- O workflow manual `Smoke test compare API` repete a pesquisa real e exige resposta em menos de 80 segundos, no máximo cinco fontes e evidência reforçada para qualquer veredito `COMPRAR`.
+
+## Proteção das APIs
+
+As rotas de análise aceitam somente a origem do próprio site em produção e aplicam um limite por minuto de melhor esforço. Para exigir um token privado adicional, configure `RADAR_API_ACCESS_TOKEN` na Vercel; a interface solicitará o token e o manterá apenas na sessão do navegador. `RADAR_ALLOWED_ORIGIN`, `RADAR_ANALYZE_RATE_LIMIT` e `RADAR_COMPARE_RATE_LIMIT` permitem ajustar a política sem alterar o código.
