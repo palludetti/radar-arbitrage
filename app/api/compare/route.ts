@@ -186,7 +186,7 @@ export async function POST(request: Request) {
     let sources: SourcePage[] = [];
     let market: MarketResearch;
     try {
-      const search = await generateText({
+      const runSearch = () => generateText({
         model: modelId,
         prompt: searchPrompt(payload, askingPrice, fees),
         tools: {
@@ -199,13 +199,26 @@ export async function POST(request: Request) {
           }),
         },
         // Qwen's thinking mode rejects forced/required tool_choice. With only
-        // the search tool available, `auto` remains portable and follows the
-        // explicit one-call prompt.
-        toolChoice: "auto",
+        // the search tool available, `auto` remains portable.
+        toolChoice: "auto" as const,
         stopWhen: stepCountIs(1),
-        maxOutputTokens: 120,
+        // Tool arguments share this budget with thinking tokens. A small
+        // budget intermittently truncated the function-call JSON.
+        maxOutputTokens: 600,
         abortSignal: controller.signal,
       });
+
+      let search: Awaited<ReturnType<typeof runSearch>> | undefined;
+      for (let attempt = 1; attempt <= 2 && !search; attempt += 1) {
+        try {
+          search = await runSearch();
+        } catch (error) {
+          if (controller.signal.aborted || attempt === 2) throw error;
+          console.warn("Radar compare search retry", error);
+        }
+      }
+
+      if (!search) throw new Error("Market search did not start.");
 
       sources = uniqueSources(
         search.steps.flatMap((step) => step.toolResults)
