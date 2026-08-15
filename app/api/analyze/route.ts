@@ -1,6 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { NextResponse } from "next/server";
+import { guardApiRequest } from "../../../lib/api-guard";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -27,8 +28,12 @@ type Analysis = {
 };
 
 const BRANDS = [
-  "Orient", "Seiko", "Citizen", "Casio", "Bulova", "Mido", "Omega", "Rolex", "Tissot", "Technos", "Invicta", "Eterna", "Longines", "Hamilton", "Timex", "Fossil", "Cartier", "Nike", "Apple", "Motorola", "Samsung", "Sony", "Nintendo",
+  "Orient", "Seiko", "Citizen", "Casio", "Bulova", "Mido", "Omega", "Rolex", "Tissot", "Technos", "Invicta", "Eterna", "Longines", "Hamilton", "Timex", "Fossil", "Cartier", "Nike", "Apple", "Motorola", "Samsung", "Sony", "Nintendo", "Pokémon",
 ];
+
+const WATCH_BRANDS = new Set([
+  "Orient", "Seiko", "Citizen", "Casio", "Bulova", "Mido", "Omega", "Rolex", "Tissot", "Technos", "Invicta", "Eterna", "Longines", "Hamilton", "Timex", "Fossil", "Cartier",
+]);
 
 const PLATFORM_MAP: Array<[RegExp, string]> = [
   [/olx\./i, "OLX"],
@@ -37,6 +42,9 @@ const PLATFORM_MAP: Array<[RegExp, string]> = [
   [/mercadolivre|mercadolibre/i, "Mercado Livre"],
   [/amazon\./i, "Amazon"],
   [/chrono24/i, "Chrono24"],
+  [/kwara\.com\.br/i, "Kwara"],
+  [/ebay\./i, "eBay"],
+  [/shopee\./i, "Shopee"],
   [/antig\.com\.br/i, "Antig"],
   [/leiloesbr\.com\.br/i, "LeiloesBR"],
   [/superbid/i, "Superbid"],
@@ -44,6 +52,15 @@ const PLATFORM_MAP: Array<[RegExp, string]> = [
 
 function platformFromUrl(url: string) {
   return PLATFORM_MAP.find(([pattern]) => pattern.test(url))?.[1] || "";
+}
+
+function categoryFromBrand(brand: string) {
+  if (WATCH_BRANDS.has(brand)) return "Relógio";
+  if (["Apple", "Motorola", "Samsung"].includes(brand)) return "Smartphone";
+  if (brand === "Nike") return "Tênis";
+  if (["Sony", "Nintendo"].includes(brand)) return "Games / Consoles";
+  if (brand === "Pokémon") return "Cartas / Pokémon";
+  return "";
 }
 
 function parseMoney(text: string): number | null {
@@ -139,24 +156,39 @@ async function fetchPage(url: URL | null): Promise<PageContext> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      redirect: "follow",
-      headers: {
-        "user-agent": "Mozilla/5.0 (compatible; RadarArbitrage/1.0; +https://vercel.app)",
-        accept: "text/html,application/xhtml+xml",
-        "accept-language": "pt-BR,pt;q=0.9,en;q=0.7",
-      },
-      cache: "no-store",
-    });
-    if (!response.ok) return { title: "", description: "", text: "", fetchWarning: `A página respondeu HTTP ${response.status}; use prints para completar a leitura.` };
-    const type = response.headers.get("content-type") || "";
-    if (!type.includes("text/html")) return { title: "", description: "", text: "", fetchWarning: "O link não retornou uma página HTML legível." };
-    const html = (await response.text()).slice(0, 900_000);
-    const title = titleFromHtml(html);
-    const description = meta(html, "og:description") || meta(html, "description");
-    const text = stripHtml(html).slice(0, 14_000);
-    return { title, description, text, fetchWarning: "" };
+    let current = url;
+    for (let redirects = 0; redirects <= 3; redirects += 1) {
+      const response = await fetch(current, {
+        signal: controller.signal,
+        redirect: "manual",
+        headers: {
+          "user-agent": "Mozilla/5.0 (compatible; RadarArbitrage/1.0; +https://vercel.app)",
+          accept: "text/html,application/xhtml+xml",
+          "accept-language": "pt-BR,pt;q=0.9,en;q=0.7",
+        },
+        cache: "no-store",
+      });
+
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const location = response.headers.get("location");
+        if (!location) return { title: "", description: "", text: "", fetchWarning: "O anúncio redirecionou sem informar um destino." };
+        if (redirects === 3) return { title: "", description: "", text: "", fetchWarning: "O anúncio excedeu o limite seguro de redirecionamentos." };
+        const next = await safeListingUrl(new URL(location, current).href);
+        if (!next) return { title: "", description: "", text: "", fetchWarning: "O redirecionamento do anúncio não pôde ser validado." };
+        current = next;
+        continue;
+      }
+
+      if (!response.ok) return { title: "", description: "", text: "", fetchWarning: `A página respondeu HTTP ${response.status}; use prints para completar a leitura.` };
+      const type = response.headers.get("content-type") || "";
+      if (!type.includes("text/html")) return { title: "", description: "", text: "", fetchWarning: "O link não retornou uma página HTML legível." };
+      const html = (await response.text()).slice(0, 900_000);
+      const title = titleFromHtml(html);
+      const description = meta(html, "og:description") || meta(html, "description");
+      const text = stripHtml(html).slice(0, 14_000);
+      return { title, description, text, fetchWarning: "" };
+    }
+    return { title: "", description: "", text: "", fetchWarning: "O anúncio não pôde ser lido com segurança." };
   } catch {
     return { title: "", description: "", text: "", fetchWarning: "Não consegui ler a página diretamente; os prints ainda podem ser analisados." };
   } finally {
@@ -176,7 +208,7 @@ function heuristic(url: string, page: PageContext): Analysis {
   if (askingPrice === null) warnings.push("Preço atual não foi localizado com segurança.");
   return {
     mode: "heuristic",
-    category: brand ? "Relógio" : "",
+    category: categoryFromBrand(brand),
     brand,
     model,
     sourcePlatform,
@@ -293,6 +325,9 @@ async function analyzeWithAI(url: string, page: PageContext, images: File[], fal
 }
 
 export async function POST(request: Request) {
+  const denied = guardApiRequest(request, "analyze");
+  if (denied) return denied;
+
   try {
     const form = await request.formData();
     const rawUrl = String(form.get("url") || "").trim();

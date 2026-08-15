@@ -58,6 +58,25 @@ const labels: Record<string, string> = {
 };
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+const accessTokenKey = "radar-api-access-token";
+
+async function radarFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const send = (token: string) => {
+    const headers = new Headers(init?.headers);
+    if (token) headers.set("x-radar-access-token", token);
+    return fetch(input, { ...init, headers });
+  };
+
+  const savedToken = sessionStorage.getItem(accessTokenKey) || "";
+  const response = await send(savedToken);
+  if (response.status !== 401 || response.headers.get("x-radar-auth") !== "required") return response;
+
+  sessionStorage.removeItem(accessTokenKey);
+  const token = window.prompt("Digite o token privado do Radar para usar a análise por IA:")?.trim() || "";
+  if (!token) return response;
+  sessionStorage.setItem(accessTokenKey, token);
+  return send(token);
+}
 
 export default function SmartImport({ formRef }: Props) {
   const [busy, setBusy] = useState(false);
@@ -86,7 +105,10 @@ export default function SmartImport({ formRef }: Props) {
     if (!target) return;
     const extra = lines.filter(Boolean).join("\n");
     if (!extra) return;
-    target.value = [target.value.trim(), extra].filter(Boolean).join("\n\n");
+    const current = target.value.trim();
+    const marker = current.indexOf("RADAR MERCADO —");
+    const base = marker >= 0 ? current.slice(0, marker).trim() : current;
+    target.value = [base, extra].filter(Boolean).join("\n\n");
   }
 
   async function analyze() {
@@ -108,7 +130,7 @@ export default function SmartImport({ formRef }: Props) {
     setMarketError("");
 
     try {
-      const response = await fetch("/api/analyze", { method: "POST", body: payload });
+      const response = await radarFetch("/api/analyze", { method: "POST", body: payload });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "Não foi possível analisar este anúncio.");
 
@@ -148,7 +170,7 @@ export default function SmartImport({ formRef }: Props) {
     setMarket(null);
 
     try {
-      const response = await fetch("/api/compare", {
+      const response = await radarFetch("/api/compare", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

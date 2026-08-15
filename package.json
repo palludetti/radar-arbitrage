@@ -2,13 +2,17 @@
   "name": "radar-arbitrage-vercel",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
+    "test": "node --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "smoke:compare": "node scripts/smoke-compare.mjs",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
-    "ai": "^6.0.0",
+    "ai": "6.0.256",
     "next": "16.2.6",
     "react": "19.2.0",
     "react-dom": "19.2.0"
