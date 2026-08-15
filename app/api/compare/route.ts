@@ -1,4 +1,4 @@
-import { gateway, generateText, stepCountIs } from "ai";
+import { gateway, generateText, jsonSchema, Output, stepCountIs } from "ai";
 import { NextResponse } from "next/server";
 import { guardApiRequest } from "../../../lib/api-guard";
 import { evaluateMarket, finiteNumber as n } from "../../../lib/radar-evaluation";
@@ -19,6 +19,59 @@ type MarketPayload = {
 };
 
 type SourcePage = { title: string; url: string; text: string };
+type MarketResearch = {
+  marketLow: number | null;
+  marketMedian: number | null;
+  marketHigh: number | null;
+  quickResale: number | null;
+  likelyResale: number | null;
+  desirability: number;
+  marketConfidence: number;
+  rationale: string;
+  riskFlags: string[];
+  comparables: Array<{
+    title: string;
+    url: string;
+    priceBRL: number | null;
+    kind: "sold" | "asking" | "unknown";
+    match: "exact" | "close" | "weak";
+    note: string;
+  }>;
+};
+
+const marketOutputSchema = jsonSchema<MarketResearch>({
+  type: "object",
+  additionalProperties: false,
+  required: ["marketLow", "marketMedian", "marketHigh", "quickResale", "likelyResale", "desirability", "marketConfidence", "rationale", "riskFlags", "comparables"],
+  properties: {
+    marketLow: { type: ["number", "null"] },
+    marketMedian: { type: ["number", "null"] },
+    marketHigh: { type: ["number", "null"] },
+    quickResale: { type: ["number", "null"] },
+    likelyResale: { type: ["number", "null"] },
+    desirability: { type: "number" },
+    marketConfidence: { type: "number" },
+    rationale: { type: "string" },
+    riskFlags: { type: "array", items: { type: "string" }, maxItems: 7 },
+    comparables: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "url", "priceBRL", "kind", "match", "note"],
+        properties: {
+          title: { type: "string" },
+          url: { type: "string" },
+          priceBRL: { type: ["number", "null"] },
+          kind: { type: "string", enum: ["sold", "asking", "unknown"] },
+          match: { type: "string", enum: ["exact", "close", "weak"] },
+          note: { type: "string" },
+        },
+      },
+    },
+  },
+});
 
 const firstString = (...values: unknown[]) => values.find((value): value is string => typeof value === "string" && value.trim().length > 0) || "";
 
@@ -58,10 +111,6 @@ function uniqueSources(sources: SourcePage[]) {
     if (key && !byUrl.has(key)) byUrl.set(key, source);
   }
   return Array.from(byUrl.values()).slice(0, 5);
-}
-
-function parseJson(text: string) {
-  return JSON.parse(text.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/i, ""));
 }
 
 function researchPrompt(payload: MarketPayload, askingPrice: number, fees: number) {
@@ -136,7 +185,13 @@ export async function POST(request: Request) {
             searchLanguageFilter: ["pt", "en"],
           }),
         },
-        stopWhen: stepCountIs(2),
+        output: Output.object({
+          name: "radar_market_evaluation",
+          description: "Conservative resale market evidence and comparable listings for Radar Arbitrage.",
+          schema: marketOutputSchema,
+        }),
+        // Structured output adds one step after the single search tool call.
+        stopWhen: stepCountIs(3),
         prepareStep: ({ stepNumber }) => stepNumber === 0
           ? {
               activeTools: ["perplexity_search"],
@@ -175,13 +230,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "A pesquisa não encontrou comparáveis utilizáveis. Confirme a referência/modelo e tente novamente." }, { status: 422 });
     }
 
-    let market: any;
-    try {
-      market = parseJson(research.text);
-    } catch {
-      console.warn("Radar compare JSON parse failed", research.text.slice(0, 1_000));
-      return NextResponse.json({ error: "A pesquisa terminou, mas a avaliação não retornou dados estruturados. Tente novamente." }, { status: 502 });
-    }
+    const market = research.output;
 
     const allowedUrls = new Set(sources.map((source) => sourceUrlKey(source.url)));
     const comparables = (Array.isArray(market.comparables) ? market.comparables : [])
