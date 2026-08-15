@@ -140,7 +140,10 @@ export async function POST(request: Request) {
         prepareStep: ({ stepNumber }) => stepNumber === 0
           ? {
               activeTools: ["perplexity_search"],
-              toolChoice: { type: "tool", toolName: "perplexity_search" },
+              // Qwen's thinking mode rejects forced/required tool_choice. With only
+              // the search tool active, `auto` keeps the request portable while the
+              // prompt still requires exactly one search before evaluation.
+              toolChoice: "auto",
               maxOutputTokens: 120,
             }
           : {
@@ -228,4 +231,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Falha ao pesquisar comparáveis no momento." }, { status: 500 });
   }
 }
-
