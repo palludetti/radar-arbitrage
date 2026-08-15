@@ -139,7 +139,7 @@ REGRAS DA PESQUISA
 }
 
 function evaluationPrompt(payload: MarketPayload, askingPrice: number, fees: number, sources: SourcePage[]) {
-  return `Você é o avaliador conservador do Radar Arbitrage.
+  return `Você é o avaliador conservador do Radar Arbitrage. Retorne somente JSON válido conforme o esquema solicitado.
 
 Avalie o item abaixo usando SOMENTE as fontes fornecidas. Não use memória para preço.
 
