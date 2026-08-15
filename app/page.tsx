@@ -1,10 +1,7 @@
 import Link from "next/link";
-
-const defaultContact = "https://wa.me/5519993296666?text=Quero%20entrar%20no%20Founding%20Beta%20do%20Radar%20Arbitrage";
+import BetaSignupForm from "./BetaSignupForm";
 
 export default function PublicHome() {
-  const betaContact = process.env.RADAR_BETA_CONTACT_URL || defaultContact;
-
   return (
     <main className="public-site">
       <nav className="public-nav" aria-label="Navegação principal">
@@ -28,7 +25,7 @@ export default function PublicHome() {
             para transformar impulso em uma decisão objetiva.
           </p>
           <div className="public-cta-row">
-            <a className="public-cta primary" href={betaContact} target="_blank" rel="noopener noreferrer">
+            <a className="public-cta primary" href="#beta-cadastro">
               Quero entrar no Founding Beta
             </a>
             <a className="public-cta secondary" href="#como-funciona">Ver como funciona</a>
@@ -96,10 +93,7 @@ export default function PublicHome() {
           <p>Pacote Founding</p>
           <div className="public-price"><small>R$</small><strong>79</strong></div>
           <span>15 análises assistidas</span>
-          <a className="public-cta primary" href={betaContact} target="_blank" rel="noopener noreferrer">
-            Reservar minha vaga
-          </a>
-          <small>Quer testar primeiro? 3 análises por R$ 29.</small>
+          <BetaSignupForm />
         </div>
       </section>
 
@@ -119,13 +113,11 @@ export default function PublicHome() {
 
       <a
         className="public-mobile-sticky"
-        href={betaContact}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Falar no WhatsApp e entrar no Founding Beta"
+        href="#beta-cadastro"
+        aria-label="Cadastrar e-mail para entrar no Founding Beta"
       >
         <span><small>FOUNDING BETA</small><strong>3 análises por R$ 29</strong></span>
-        <b>Falar no WhatsApp</b>
+        <b>Cadastrar e-mail</b>
       </a>
     </main>
   );
