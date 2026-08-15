@@ -149,9 +149,11 @@ export async function POST(request: Request) {
           : {
               activeTools: [],
               toolChoice: "none",
-              maxOutputTokens: 1_200,
+              // Thinking tokens count against this budget on Qwen. Leave enough
+              // room for reasoning plus the complete JSON payload.
+              maxOutputTokens: 3_200,
             },
-        maxOutputTokens: 1_200,
+        maxOutputTokens: 3_200,
         abortSignal: controller.signal,
       });
     } catch (error) {
