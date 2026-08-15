@@ -113,15 +113,12 @@ function uniqueSources(sources: SourcePage[]) {
   return Array.from(byUrl.values()).slice(0, 5);
 }
 
-function researchPrompt(payload: MarketPayload, askingPrice: number, fees: number) {
+function searchPrompt(payload: MarketPayload, askingPrice: number, fees: number) {
   const brand = String(payload.brand || "").trim();
   const model = String(payload.model || "").trim();
-  return `Você é o motor de pesquisa e avaliação do Radar Arbitrage.
+  return `Você é o pesquisador do Radar Arbitrage.
 
-FLUXO OBRIGATÓRIO
-1. Chame perplexity_search EXATAMENTE UMA VEZ, com UMA consulta ampla sobre o item abaixo. Não divida a busca em várias chamadas.
-2. Depois da ferramenta, não pesquise novamente. Avalie somente as fontes retornadas.
-3. Retorne JSON puro, sem markdown.
+Chame perplexity_search EXATAMENTE UMA VEZ, agora, com UMA consulta ampla sobre o item abaixo. Não responda com análise e não divida a busca em várias chamadas.
 
 ITEM
 Categoria: ${payload.category || "não informada"}
@@ -138,19 +135,34 @@ REGRAS DA PESQUISA
 - Ignore MSRP, preço riscado, parcelas, cupom e preço de tabela.
 - Relógios: referência, originalidade e condição precisam ser comparáveis.
 - Pokémon: carta, edição, número, idioma e grade precisam coincidir; raw não equivale a PSA 9.
-- Aceite fontes internacionais somente quando o mercado brasileiro for escasso.
+- Aceite fontes internacionais somente quando o mercado brasileiro for escasso.`;
+}
+
+function evaluationPrompt(payload: MarketPayload, askingPrice: number, fees: number, sources: SourcePage[]) {
+  return `Você é o avaliador conservador do Radar Arbitrage.
+
+Avalie o item abaixo usando SOMENTE as fontes fornecidas. Não use memória para preço.
+
+ITEM
+Categoria: ${payload.category || "não informada"}
+Marca: ${payload.brand || "não informada"}
+Modelo/referência: ${payload.model || "não confirmada"}
+Preço pedido: R$ ${askingPrice}
+Frete/taxas de entrada: R$ ${fees}
+Plataforma: ${payload.sourcePlatform || "não informada"}
+Notas: ${payload.notes || "nenhuma"}
+
+FONTES
+${JSON.stringify(sources)}
 
 REGRAS DA AVALIAÇÃO
-- Não use memória para preço.
 - Só marque match=exact quando o modelo/referência realmente coincide.
 - kind=sold exige evidência de venda concluída; caso contrário use asking ou unknown.
 - quickResale é preço conservador para venda rápida; likelyResale é preço provável com espera.
 - desirability e marketConfidence vão de 0 a 100.
-- URLs dos comparáveis devem ser exatamente URLs retornadas pela ferramenta.
+- URLs dos comparáveis devem ser copiadas exatamente das fontes acima.
 - No máximo 5 comparáveis.
-
-FORMATO
-{"marketLow":number|null,"marketMedian":number|null,"marketHigh":number|null,"quickResale":number|null,"likelyResale":number|null,"desirability":number,"marketConfidence":number,"rationale":"texto curto","riskFlags":["..."],"comparables":[{"title":"...","url":"...","priceBRL":number|null,"kind":"sold|asking|unknown","match":"exact|close|weak","note":"..."}]}`;
+- Quando faltarem dados confiáveis, use null, reduza marketConfidence e explique em riskFlags.`;
 }
 
 export async function POST(request: Request) {
@@ -171,11 +183,12 @@ export async function POST(request: Request) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 70_000);
 
-    let research;
+    let sources: SourcePage[] = [];
+    let market: MarketResearch;
     try {
-      research = await generateText({
+      const search = await generateText({
         model: modelId,
-        prompt: researchPrompt(payload, askingPrice, fees),
+        prompt: searchPrompt(payload, askingPrice, fees),
         tools: {
           perplexity_search: gateway.tools.perplexitySearch({
             maxResults: 5,
@@ -185,32 +198,39 @@ export async function POST(request: Request) {
             searchLanguageFilter: ["pt", "en"],
           }),
         },
+        // Qwen's thinking mode rejects forced/required tool_choice. With only
+        // the search tool available, `auto` remains portable and follows the
+        // explicit one-call prompt.
+        toolChoice: "auto",
+        stopWhen: stepCountIs(1),
+        maxOutputTokens: 120,
+        abortSignal: controller.signal,
+      });
+
+      sources = uniqueSources(
+        search.steps.flatMap((step) => step.toolResults)
+          .filter((result) => result.toolName === "perplexity_search")
+          .flatMap((result) => normalizeSearchOutput(result.output)),
+      );
+
+      if (!sources.length) {
+        return NextResponse.json({ error: "A pesquisa não encontrou comparáveis utilizáveis. Confirme a referência/modelo e tente novamente." }, { status: 422 });
+      }
+
+      const evaluation = await generateText({
+        model: modelId,
+        prompt: evaluationPrompt(payload, askingPrice, fees, sources),
         output: Output.object({
           name: "radar_market_evaluation",
           description: "Conservative resale market evidence and comparable listings for Radar Arbitrage.",
           schema: marketOutputSchema,
         }),
-        // Structured output adds one step after the single search tool call.
-        stopWhen: stepCountIs(3),
-        prepareStep: ({ stepNumber }) => stepNumber === 0
-          ? {
-              activeTools: ["perplexity_search"],
-              // Qwen's thinking mode rejects forced/required tool_choice. With only
-              // the search tool active, `auto` keeps the request portable while the
-              // prompt still requires exactly one search before evaluation.
-              toolChoice: "auto",
-              maxOutputTokens: 120,
-            }
-          : {
-              activeTools: [],
-              toolChoice: "none",
-              // Thinking tokens count against this budget on Qwen. Leave enough
-              // room for reasoning plus the complete JSON payload.
-              maxOutputTokens: 3_200,
-            },
+        // Thinking tokens count against this budget on Qwen. Leave enough room
+        // for reasoning plus the complete validated object.
         maxOutputTokens: 3_200,
         abortSignal: controller.signal,
       });
+      market = evaluation.output;
     } catch (error) {
       if (controller.signal.aborted) {
         return NextResponse.json({ error: "A pesquisa de mercado excedeu 70 segundos. Tente novamente." }, { status: 504 });
@@ -219,18 +239,6 @@ export async function POST(request: Request) {
     } finally {
       clearTimeout(timer);
     }
-
-    const sources = uniqueSources(
-      research.steps.flatMap((step) => step.toolResults)
-        .filter((result) => result.toolName === "perplexity_search")
-        .flatMap((result) => normalizeSearchOutput(result.output)),
-    );
-
-    if (!sources.length) {
-      return NextResponse.json({ error: "A pesquisa não encontrou comparáveis utilizáveis. Confirme a referência/modelo e tente novamente." }, { status: 422 });
-    }
-
-    const market = research.output;
 
     const allowedUrls = new Set(sources.map((source) => sourceUrlKey(source.url)));
     const comparables = (Array.isArray(market.comparables) ? market.comparables : [])
