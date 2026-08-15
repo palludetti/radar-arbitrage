@@ -33,6 +33,10 @@ export default function PublicHome() {
             </a>
             <a className="public-cta secondary" href="#como-funciona">Ver como funciona</a>
           </div>
+          <p className="public-mobile-offer">
+            <strong>Teste por R$ 29</strong>
+            <span>3 análises assistidas · sem assinatura</span>
+          </p>
           <div className="public-proof" aria-label="Características do serviço">
             <span>Resposta direta</span><span>Score próprio</span><span>Foco em margem real</span>
           </div>
@@ -112,6 +116,17 @@ export default function PublicHome() {
         <div><strong>Radar Arbitrage</strong><span>Menos impulso. Mais margem.</span></div>
         <p>As análises são estimativas e não constituem garantia de retorno financeiro.</p>
       </footer>
+
+      <a
+        className="public-mobile-sticky"
+        href={betaContact}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Falar no WhatsApp e entrar no Founding Beta"
+      >
+        <span><small>FOUNDING BETA</small><strong>3 análises por R$ 29</strong></span>
+        <b>Falar no WhatsApp</b>
+      </a>
     </main>
   );
 }
