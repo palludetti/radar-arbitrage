@@ -241,9 +241,23 @@ export async function POST(request: Request) {
     }
 
     const allowedUrls = new Set(sources.map((source) => sourceUrlKey(source.url)));
-    const comparables = (Array.isArray(market.comparables) ? market.comparables : [])
+    const modelComparables = (Array.isArray(market.comparables) ? market.comparables : [])
       .filter((comparable: any) => comparable && allowedUrls.has(sourceUrlKey(String(comparable.url || ""))))
       .slice(0, 5);
+    const representedUrls = new Set(modelComparables.map((comparable) => sourceUrlKey(comparable.url)));
+    const comparables = [
+      ...modelComparables,
+      ...sources
+        .filter((source) => !representedUrls.has(sourceUrlKey(source.url)))
+        .map((source) => ({
+          title: source.title || "Fonte pesquisada",
+          url: source.url,
+          priceBRL: null,
+          kind: "unknown" as const,
+          match: "weak" as const,
+          note: source.text.slice(0, 180) || "Fonte consultada; preço e equivalência ainda precisam de confirmação.",
+        })),
+    ].slice(0, 5);
 
     const quickResale = n(market.quickResale);
     const likelyResale = n(market.likelyResale);
