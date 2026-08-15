@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { guardApiRequest } from "../lib/api-guard.ts";
+import { createAdminSession, RADAR_SESSION_COOKIE } from "../lib/admin-session.ts";
 
 function request(headers: Record<string, string> = {}) {
   return new Request("https://radar.example/api/compare", {
@@ -35,6 +36,24 @@ test("optional access token blocks unauthenticated AI calls", () => {
     assert.equal(accepted, null);
   } finally {
     delete process.env.RADAR_API_ACCESS_TOKEN;
+  }
+});
+
+test("configured admin auth blocks missing sessions and accepts signed cookies", () => {
+  process.env.RADAR_ADMIN_PASSWORD = "test-password-with-length";
+  process.env.RADAR_SESSION_SECRET = "test-session-secret-with-at-least-thirty-two-characters";
+  try {
+    const missing = guardApiRequest(request({ "x-forwarded-for": "guard-session-missing" }), "compare");
+    const accepted = guardApiRequest(request({
+      "x-forwarded-for": "guard-session-present",
+      cookie: `${RADAR_SESSION_COOKIE}=${createAdminSession()}`,
+    }), "compare");
+    assert.equal(missing?.status, 401);
+    assert.equal(missing?.headers.get("x-radar-session"), "required");
+    assert.equal(accepted, null);
+  } finally {
+    delete process.env.RADAR_ADMIN_PASSWORD;
+    delete process.env.RADAR_SESSION_SECRET;
   }
 });
 

@@ -69,6 +69,10 @@ async function radarFetch(input: RequestInfo | URL, init?: RequestInit) {
 
   const savedToken = sessionStorage.getItem(accessTokenKey) || "";
   const response = await send(savedToken);
+  if (response.status === 401 && response.headers.get("x-radar-session") === "required") {
+    window.location.assign("/login?next=/radar");
+    return response;
+  }
   if (response.status !== 401 || response.headers.get("x-radar-auth") !== "required") return response;
 
   sessionStorage.removeItem(accessTokenKey);

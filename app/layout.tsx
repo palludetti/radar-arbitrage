@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Radar Arbitrage",
-  description: "Painel privado para análise de oportunidades de arbitragem.",
+  title: {
+    default: "Radar Arbitrage — Decisão antes da compra",
+    template: "%s | Radar Arbitrage",
+  },
+  description: "Análise assistida de margem, liquidez e risco para oportunidades de arbitragem.",
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };
 
