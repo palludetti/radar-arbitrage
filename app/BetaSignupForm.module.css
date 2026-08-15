@@ -1,0 +1,11 @@
+.form{position:relative;margin-top:26px}
+.field{display:block;margin-top:12px}
+.field>span{display:block;margin-bottom:7px;color:#53625b;font-size:10px;font-weight:800}
+.field input,.field select{width:100%;height:46px;padding:0 12px;border:1px solid #aab4af;background:#fff;color:#17231f;outline:none;font-size:12px}
+.field input:focus,.field select:focus{border-color:#197352;box-shadow:0 0 0 3px #19735218}
+.form :global(.public-cta){margin-top:14px}
+.form :global(.public-cta:disabled){opacity:.7;cursor:wait}
+.form>small{display:block;margin-top:11px;color:#69736f;font-size:9px;line-height:1.45;text-align:center}
+.message{margin:11px 0 0;padding:9px 10px;border:1px solid #c5d8cf;background:#e8f4ee;color:#175f47;font-size:10px;line-height:1.45}
+.error{border-color:#e5baba;background:#fff0f0;color:#8c3434}
+.honeypot{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
