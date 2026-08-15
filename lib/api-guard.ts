@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { isAdminAuthConfigured, requestHasValidAdminSession } from "./admin-session.ts";
 
 type Bucket = { count: number; resetAt: number };
 type GuardRoute = "analyze" | "compare";
@@ -34,6 +35,15 @@ export function guardApiRequest(request: Request, route: GuardRoute): Response |
   const origin = request.headers.get("origin");
   if (process.env.NODE_ENV === "production" && origin !== expectedOrigin) {
     return jsonError(403, "Origem não autorizada para esta API.");
+  }
+
+  if (process.env.NODE_ENV === "production" && !isAdminAuthConfigured()) {
+    return jsonError(503, "Acesso administrativo do Radar não configurado.");
+  }
+  if (isAdminAuthConfigured() && !requestHasValidAdminSession(request)) {
+    return jsonError(401, "Sessão administrativa necessária.", {
+      "x-radar-session": "required",
+    });
   }
 
   const expectedToken = process.env.RADAR_API_ACCESS_TOKEN;
