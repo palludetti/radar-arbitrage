@@ -95,6 +95,7 @@ const rules: RuleSeed[] = [
   { id:7, rule:"Canal de revenda", type:"Operação", definition:"Evitar mesmo grupo-fonte do fornecedor recorrente", reason:"Reduz conflito/exposição do spread." },
   { id:8, rule:"Alertas", type:"Monitoramento", definition:"Só desconto significativo + margem líquida plausível", reason:"Menos ruído." },
   { id:9, rule:"MVP", type:"Produto", definition:"Comprar / Joia / Negociar / Passar", reason:"Menos é mais." },
+  { id:10, rule:"Corte do monitor", type:"Monitoramento", definition:"Promover somente APROFUNDAR ou superior", reason:"Mantém PASSAR e ruído fora da base operacional." },
 ];
 
 const baseOpportunities: OpportunitySeed[] = baseRows.map((row) => {
