@@ -32,6 +32,10 @@ type MarketResult = {
   quickResale: number | null;
   likelyResale: number | null;
   maxPurchase: number | null;
+  totalAcquisitionCost: number;
+  sellingCosts: number;
+  quickNetProfit: number | null;
+  likelyNetProfit: number | null;
   iao: number;
   iam: number;
   ice: number;
@@ -182,7 +186,15 @@ export default function SmartImport({ formRef }: Props) {
           brand,
           model: value("model"),
           askingPrice,
-          fees: Number(value("fees")) || 0,
+          shipping: Number(value("shipping")) || 0,
+          purchaseFees: Number(value("purchaseFees")) || 0,
+          maintenanceReserve: Number(value("maintenanceReserve")) || 0,
+          partsReserve: Number(value("partsReserve")) || 0,
+          safetyMargin: Number(value("safetyMargin")) || 0,
+          sellingCosts: Number(value("sellingCosts")) || 0,
+          authGate: value("authGate"),
+          capitalGate: value("capitalGate"),
+          conditionGate: value("conditionGate"),
           sourcePlatform: value("sourcePlatform"),
           seller: value("seller"),
           notes: value("notes"),
@@ -204,6 +216,7 @@ export default function SmartImport({ formRef }: Props) {
 
       appendNotes([
         `RADAR MERCADO — ${analysis.verdict} · Score ${analysis.radarScore.toFixed(1)} · confiança ${analysis.marketConfidence}%`,
+        `Custo total de aquisição: ${brl.format(analysis.totalAcquisitionCost)} · custo de venda: ${brl.format(analysis.sellingCosts)} · lucro líquido provável: ${analysis.likelyNetProfit === null ? "não calculado" : brl.format(analysis.likelyNetProfit)}`,
         analysis.rationale,
         analysis.riskFlags?.length ? `Riscos: ${analysis.riskFlags.join(" | ")}` : "",
         analysis.comparables?.length
@@ -290,6 +303,9 @@ export default function SmartImport({ formRef }: Props) {
               <span>Compra máx. <b>{market.maxPurchase === null ? "—" : brl.format(market.maxPurchase)}</b></span>
               <span>Revenda rápida <b>{market.quickResale === null ? "—" : brl.format(market.quickResale)}</b></span>
               <span>Revenda provável <b>{market.likelyResale === null ? "—" : brl.format(market.likelyResale)}</b></span>
+              <span>Custo total <b>{brl.format(market.totalAcquisitionCost)}</b></span>
+              <span>Lucro líquido rápido <b>{market.quickNetProfit === null ? "—" : brl.format(market.quickNetProfit)}</b></span>
+              <span>Lucro líquido provável <b>{market.likelyNetProfit === null ? "—" : brl.format(market.likelyNetProfit)}</b></span>
               <span>IAO <b>{market.iao}</b></span>
               <span>IAM <b>{market.iam}</b></span>
               <span>ICE <b>{market.ice}</b></span>

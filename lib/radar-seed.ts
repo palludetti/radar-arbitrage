@@ -11,6 +11,12 @@ type OpportunitySeed = {
   seller?: string;
   askingPrice?: number | null;
   fees?: number | null;
+  shipping?: number | null;
+  purchaseFees?: number | null;
+  maintenanceReserve?: number | null;
+  partsReserve?: number | null;
+  safetyMargin?: number | null;
+  sellingCosts?: number | null;
   totalCost?: number | null;
   maxPurchase?: number | null;
   quickResale?: number | null;
@@ -27,6 +33,7 @@ type OpportunitySeed = {
   radarScore?: number | null;
   authGate?: string;
   capitalGate?: string;
+  conditionGate?: string;
   verdict?: string;
   status?: string;
   notes?: string;

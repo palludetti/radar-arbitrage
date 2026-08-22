@@ -5,9 +5,15 @@ export type ComparableEvidence = {
 
 type EvaluationInput = {
   askingPrice: number;
-  fees: number;
+  acquisitionCosts: number;
+  sellingCosts: number;
   modelConfirmed: boolean;
+  authenticityRequired?: boolean;
+  authGate?: string;
+  capitalGate?: string;
+  conditionGate?: string;
   quickResale: number | null;
+  likelyResale?: number | null;
   desirability: number | null;
   marketConfidence: number | null;
   extractionConfidence?: Record<string, number>;
@@ -25,6 +31,10 @@ export type RadarEvaluation = {
   evidenceReady: boolean;
   exactComparables: number;
   exactSoldComparables: number;
+  totalAcquisitionCost: number;
+  quickNetProfit: number | null;
+  likelyNetProfit: number | null;
+  gateBlocks: string[];
 };
 
 export function finiteNumber(value: unknown): number | null {
@@ -40,10 +50,15 @@ export function clamp(value: number, min = 0, max = 100) {
 export function evaluateMarket(input: EvaluationInput): RadarEvaluation {
   const marketConfidence = clamp(Math.round(input.marketConfidence ?? 0));
   const iam = clamp(Math.round(input.desirability ?? 50));
-  const totalCost = input.askingPrice + input.fees;
+  const totalCost = input.askingPrice + input.acquisitionCosts;
   const quickResale = input.quickResale;
-  const maxPurchase = quickResale === null ? null : Math.max(0, Math.round(quickResale * 0.65 - input.fees));
-  const discountToQuick = quickResale && quickResale > 0 ? (quickResale - totalCost) / quickResale : null;
+  const netQuickResale = quickResale === null ? null : Math.max(0, quickResale - input.sellingCosts);
+  const maxPurchase = netQuickResale === null ? null : Math.max(0, Math.round(netQuickResale * 0.65 - input.acquisitionCosts));
+  const quickNetProfit = netQuickResale === null ? null : Math.round((netQuickResale - totalCost) * 100) / 100;
+  const likelyNetProfit = input.likelyResale === null || input.likelyResale === undefined
+    ? null
+    : Math.round((input.likelyResale - input.sellingCosts - totalCost) * 100) / 100;
+  const discountToQuick = netQuickResale && netQuickResale > 0 ? (netQuickResale - totalCost) / netQuickResale : null;
   const iao = discountToQuick === null ? 0 : clamp(Math.round(25 + discountToQuick * 180));
 
   const confidenceValues = Object.values(input.extractionConfidence || {}).filter((value) => Number.isFinite(value));
@@ -63,14 +78,24 @@ export function evaluateMarket(input: EvaluationInput): RadarEvaluation {
     && exactComparables >= 2
     && exactSoldComparables >= 1,
   );
-  const needsVerification = !evidenceReady;
-  const overpriced = quickResale !== null && quickResale > 0 && totalCost > quickResale * 0.8;
+  const authGate = (input.authGate || "N/A").toUpperCase();
+  const capitalGate = (input.capitalGate || "N/A").toUpperCase();
+  const conditionGate = (input.conditionGate || "PENDENTE").toUpperCase();
+  const gateBlocks: string[] = [];
+  if (input.authenticityRequired && authGate !== "OK") gateBlocks.push("Autenticidade pendente para item de alto risco");
+  else if (["PENDENTE", "BLOQUEADO", "NÃO", "NAO"].includes(authGate)) gateBlocks.push("Autenticidade não confirmada");
+  if (["NÃO", "NAO", "BLOQUEADO"].includes(capitalGate)) gateBlocks.push("Capital indisponível ou concentração excessiva");
+  if (conditionGate !== "OK") gateBlocks.push("Condição/funcionamento não confirmados");
+  const capitalBlocked = ["NÃO", "NAO", "BLOQUEADO"].includes(capitalGate);
+  const purchaseGatesReady = gateBlocks.length === 0;
+  const needsVerification = !evidenceReady || !purchaseGatesReady;
+  const overpriced = netQuickResale !== null && netQuickResale > 0 && totalCost > netQuickResale * 0.8;
 
   let verdict: RadarEvaluation["verdict"] = "PASSAR";
-  if (overpriced) verdict = "PASSAR";
-  else if (!evidenceReady) verdict = "NEGOCIAR";
+  if (overpriced || capitalBlocked) verdict = "PASSAR";
+  else if (!evidenceReady || !purchaseGatesReady) verdict = "NEGOCIAR";
   else if (maxPurchase !== null && totalCost <= maxPurchase && radarScore >= 78) verdict = "COMPRAR";
-  else if (quickResale !== null && totalCost <= quickResale * 0.8) verdict = "NEGOCIAR";
+  else if (netQuickResale !== null && totalCost <= netQuickResale * 0.8) verdict = "NEGOCIAR";
 
   return {
     maxPurchase,
@@ -83,5 +108,9 @@ export function evaluateMarket(input: EvaluationInput): RadarEvaluation {
     evidenceReady,
     exactComparables,
     exactSoldComparables,
+    totalAcquisitionCost: totalCost,
+    quickNetProfit,
+    likelyNetProfit,
+    gateBlocks,
   };
 }

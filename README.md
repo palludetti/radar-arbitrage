@@ -18,6 +18,8 @@ Cada oportunidade pode conter:
 - `seller`
 - `askingPrice`
 - `fees`
+- `shipping`, `purchaseFees`, `maintenanceReserve`, `partsReserve`, `safetyMargin`
+- `sellingCosts`
 - `maxPurchase`
 - `quickResale`
 - `likelyResale`
@@ -30,6 +32,7 @@ Cada oportunidade pode conter:
 - `ice`
 - `authGate`
 - `capitalGate`
+- `conditionGate`
 - `verdict`
 - `status`
 - `notes`
@@ -38,6 +41,8 @@ Cada oportunidade pode conter:
 ## Regra operacional
 
 O Radar prioriza margem real, liquidez, autenticidade, condição e custo total. Preço anunciado ou desconto sobre MSRP não é tratado como oportunidade por si só.
+
+O custo total soma preço, frete, taxas de compra, manutenção provável, peças/bateria e margem de segurança. O lucro líquido também desconta os custos estimados da venda. Os gates de autenticidade, capital e condição podem impedir `COMPRAR` independentemente do Radar Score.
 
 ## Deploy
 

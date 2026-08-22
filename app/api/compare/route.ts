@@ -12,11 +12,31 @@ type MarketPayload = {
   model?: string;
   askingPrice?: number | null;
   fees?: number | null;
+  shipping?: number | null;
+  purchaseFees?: number | null;
+  maintenanceReserve?: number | null;
+  partsReserve?: number | null;
+  safetyMargin?: number | null;
+  sellingCosts?: number | null;
+  authGate?: string;
+  capitalGate?: string;
+  conditionGate?: string;
   sourcePlatform?: string;
   seller?: string;
   notes?: string;
   extractionConfidence?: Record<string, number>;
 };
+
+const HIGH_AUTH_RISK_BRANDS = new Set(["rolex", "omega", "cartier"]);
+
+function costBreakdown(payload: MarketPayload) {
+  const detailed = [payload.shipping, payload.purchaseFees, payload.maintenanceReserve, payload.partsReserve, payload.safetyMargin];
+  const hasDetailedCosts = detailed.some((value) => n(value) !== null);
+  return {
+    acquisitionCosts: hasDetailedCosts ? detailed.reduce<number>((sum, value) => sum + (n(value) ?? 0), 0) : (n(payload.fees) ?? 0),
+    sellingCosts: n(payload.sellingCosts) ?? 0,
+  };
+}
 
 type SourcePage = { title: string; url: string; text: string };
 type MarketResearch = {
@@ -172,7 +192,7 @@ export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as MarketPayload;
     const askingPrice = n(payload.askingPrice);
-    const fees = n(payload.fees) ?? 0;
+    const { acquisitionCosts, sellingCosts } = costBreakdown(payload);
     const brand = String(payload.brand || "").trim();
     const model = String(payload.model || "").trim();
 
@@ -188,7 +208,7 @@ export async function POST(request: Request) {
     try {
       const runSearch = () => generateText({
         model: modelId,
-        prompt: searchPrompt(payload, askingPrice, fees),
+        prompt: searchPrompt(payload, askingPrice, acquisitionCosts),
         tools: {
           perplexity_search: gateway.tools.perplexitySearch({
             maxResults: 5,
@@ -232,7 +252,7 @@ export async function POST(request: Request) {
 
       const evaluation = await generateText({
         model: modelId,
-        prompt: evaluationPrompt(payload, askingPrice, fees, sources),
+        prompt: evaluationPrompt(payload, askingPrice, acquisitionCosts, sources),
         output: Output.object({
           name: "radar_market_evaluation",
           description: "Conservative resale market evidence and comparable listings for Radar Arbitrage.",
@@ -277,9 +297,15 @@ export async function POST(request: Request) {
     const marketConfidence = Math.max(0, Math.min(100, Math.round(n(market.marketConfidence) ?? 0)));
     const evaluation = evaluateMarket({
       askingPrice,
-      fees,
+      acquisitionCosts,
+      sellingCosts,
       modelConfirmed: Boolean(model),
+      authenticityRequired: HIGH_AUTH_RISK_BRANDS.has(brand.toLowerCase()),
+      authGate: payload.authGate,
+      capitalGate: payload.capitalGate,
+      conditionGate: payload.conditionGate,
       quickResale,
+      likelyResale,
       desirability: n(market.desirability),
       marketConfidence,
       extractionConfidence: payload.extractionConfidence,
@@ -292,6 +318,7 @@ export async function POST(request: Request) {
         `Compra automática bloqueada: exige 2 comparáveis exatos, incluindo 1 venda concluída; encontrados ${evaluation.exactComparables} exatos e ${evaluation.exactSoldComparables} vendidos.`,
       );
     }
+    riskFlags.unshift(...evaluation.gateBlocks);
 
     return NextResponse.json({
       marketLow: n(market.marketLow),
@@ -300,6 +327,10 @@ export async function POST(request: Request) {
       quickResale,
       likelyResale,
       maxPurchase: evaluation.maxPurchase,
+      totalAcquisitionCost: evaluation.totalAcquisitionCost,
+      sellingCosts,
+      quickNetProfit: evaluation.quickNetProfit,
+      likelyNetProfit: evaluation.likelyNetProfit,
       iao: evaluation.iao,
       iam: evaluation.iam,
       ice: evaluation.ice,
