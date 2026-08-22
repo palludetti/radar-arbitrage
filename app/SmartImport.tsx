@@ -51,6 +51,7 @@ type MarketResult = {
 
 type Props = {
   formRef: RefObject<HTMLFormElement | null>;
+  initialUrl?: string | null;
 };
 
 const labels: Record<string, string> = {
@@ -86,7 +87,7 @@ async function radarFetch(input: RequestInfo | URL, init?: RequestInit) {
   return send(token);
 }
 
-export default function SmartImport({ formRef }: Props) {
+export default function SmartImport({ formRef, initialUrl }: Props) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
@@ -249,7 +250,7 @@ export default function SmartImport({ formRef }: Props) {
       <div className="smart-import-grid">
         <label className="field smart-url">
           <span>Link do anúncio</span>
-          <input name="url" type="url" placeholder="https://..." />
+          <input name="url" type="url" defaultValue={initialUrl || ""} placeholder="https://..." />
         </label>
         <label className="field smart-images">
           <span>Prints / fotos</span>
