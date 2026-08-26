@@ -94,7 +94,7 @@ export function evaluateMarket(input: EvaluationInput): RadarEvaluation {
   let verdict: RadarEvaluation["verdict"] = "PASSAR";
   if (overpriced || capitalBlocked) verdict = "PASSAR";
   else if (!evidenceReady || !purchaseGatesReady) verdict = "NEGOCIAR";
-  else if (maxPurchase !== null && totalCost <= maxPurchase && radarScore >= 78) verdict = "COMPRAR";
+  else if (maxPurchase !== null && input.askingPrice <= maxPurchase && radarScore >= 78) verdict = "COMPRAR";
   else if (netQuickResale !== null && totalCost <= netQuickResale * 0.8) verdict = "NEGOCIAR";
 
   return {
