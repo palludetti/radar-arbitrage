@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type RefObject } from "react";
+import { radarFetch } from "../lib/radar-fetch-client";
 
 type AnalysisResult = {
   mode: "ai" | "heuristic";
@@ -63,29 +64,6 @@ const labels: Record<string, string> = {
 };
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-const accessTokenKey = "radar-api-access-token";
-
-async function radarFetch(input: RequestInfo | URL, init?: RequestInit) {
-  const send = (token: string) => {
-    const headers = new Headers(init?.headers);
-    if (token) headers.set("x-radar-access-token", token);
-    return fetch(input, { ...init, headers });
-  };
-
-  const savedToken = sessionStorage.getItem(accessTokenKey) || "";
-  const response = await send(savedToken);
-  if (response.status === 401 && response.headers.get("x-radar-session") === "required") {
-    window.location.assign("/login?next=/radar");
-    return response;
-  }
-  if (response.status !== 401 || response.headers.get("x-radar-auth") !== "required") return response;
-
-  sessionStorage.removeItem(accessTokenKey);
-  const token = window.prompt("Digite o token privado do Radar para usar a análise por IA:")?.trim() || "";
-  if (!token) return response;
-  sessionStorage.setItem(accessTokenKey, token);
-  return send(token);
-}
 
 export default function SmartImport({ formRef, initialUrl }: Props) {
   const [busy, setBusy] = useState(false);
