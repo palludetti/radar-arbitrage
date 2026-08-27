@@ -134,6 +134,58 @@ function toRow(input: OpportunityInput): Record<string, unknown> {
     return row;
 }
 
+/**
+ * Schema default for every not-null column (mirrors supabase/schema.sql).
+ * Only used by toInsertRow — see below for why.
+ */
+const NOT_NULL_DEFAULTS: Partial<Record<keyof OpportunityRecord, unknown>> = {
+    category: "Outros",
+    brand: "",
+    model: "",
+    sourcePlatform: "",
+    seller: "",
+    authGate: "N/A",
+    capitalGate: "N/A",
+    conditionGate: "PENDENTE",
+    verdict: "EM ESTUDO",
+    status: "Aprofundar",
+    notes: "",
+    validated: false,
+    origin: "manual",
+};
+
+/**
+ * Same mapping as toRow, but backfills every not-null column (including
+ * created_at/updated_at) that ended up absent, instead of leaving the key
+ * out for Postgres's own column default to handle.
+ *
+ * This matters specifically for bulk insert/upsert: PostgREST derives the
+ * INSERT's column list from the UNION of keys across every row in the
+ * batch, and a row that's missing a column a sibling row *does* provide
+ * gets that column NULL-filled rather than falling back to the table
+ * default. So a heterogeneous "Colar do chat" batch — some pasted items
+ * never had `conditionGate` at all, others did — can violate a not-null
+ * constraint even though every row would have inserted fine on its own
+ * (this is exactly what broke the first fix here, which only stopped
+ * forwarding *explicit* nulls; an *absent* key in a mixed batch hits the
+ * same PostgREST column-padding behavior). Giving every row in the batch
+ * the same complete key set sidesteps it entirely.
+ *
+ * Only used by createOpportunities. updateOpportunity must keep using the
+ * plain toRow — backfilling defaults there would clobber fields a partial
+ * patch never touched.
+ */
+function toInsertRow(input: OpportunityInput, now: string): Record<string, unknown> {
+    const row = toRow(input);
+    for (const [key, fallback] of Object.entries(NOT_NULL_DEFAULTS) as [keyof OpportunityRecord, unknown][]) {
+          const column = COLUMN_MAP[key];
+          if (row[column] === undefined) row[column] = fallback;
+    }
+    if (row.created_at === undefined) row.created_at = now;
+    if (row.updated_at === undefined) row.updated_at = now;
+    return row;
+}
+
 /** Converts a full DB row back into the app shape. */
 function fromRow(row: Record<string, any>): OpportunityRecord {
     return {
@@ -202,12 +254,13 @@ export async function createOpportunities(
     const withoutId = items.filter((item) => !(typeof item.id === "string" && item.id.trim().length > 0));
     const requestedIds = withId.map((item) => item.id as string);
     const created: OpportunityRecord[] = [];
+    const now = new Date().toISOString();
 
   if (withId.length) {
         const { data, error } = await supabase()
           .from("opportunities")
           .upsert(
-                    withId.map((item) => toRow(item)),
+                    withId.map((item) => toInsertRow(item, now)),
             { onConflict: "id", ignoreDuplicates: true },
                   )
           .select();
@@ -218,7 +271,7 @@ export async function createOpportunities(
   if (withoutId.length) {
         const { data, error } = await supabase()
           .from("opportunities")
-          .insert(withoutId.map((item) => toRow(item)))
+          .insert(withoutId.map((item) => toInsertRow(item, now)))
           .select();
         if (error) throw new Error(`Falha ao criar oportunidade: ${error.message}`);
         created.push(...(data ?? []).map(fromRow));
