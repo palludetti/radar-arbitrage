@@ -12,6 +12,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
     "ai": "6.0.256",
     "next": "16.2.6",
     "react": "19.2.0",
