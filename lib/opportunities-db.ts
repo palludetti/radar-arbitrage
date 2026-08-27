@@ -94,18 +94,41 @@ const COLUMN_MAP: Record<keyof OpportunityRecord, string> = {
 };
 
 /**
+ * Columns that are genuinely nullable in the schema (numeric scores/costs
+ * not yet filled in, and `url` when an opportunity has no link). Every other
+ * column is `not null default '...'` — for those, an explicit `null` in the
+ * input (as opposed to the key being absent) must NOT be forwarded to
+ * Postgres as a literal null, or the insert/upsert violates the not-null
+ * constraint instead of falling back to the column default.
+ */
+const NULLABLE_COLUMNS = new Set<keyof OpportunityRecord>([
+    "askingPrice", "shipping", "purchaseFees", "maintenanceReserve", "partsReserve",
+    "safetyMargin", "fees", "sellingCosts", "maxPurchase", "quickResale", "likelyResale",
+    "liquidity", "condition", "originality", "completeness", "iao", "iam", "ice",
+    "radarScore", "url",
+]);
+
+/**
  * Converts an app-shaped (partial) input into a DB row, including only keys
  * actually present AND recognized. Unknown keys are dropped rather than
  * mapped — the client sends display-derived fields too (totalCost,
  * grossMargin, roiGross from RadarDashboard.tsx's normalize()) that have no
  * column here by design; silently ignoring them is correct, writing them
  * under a literal "undefined" column would not be.
+ *
+ * A `null` value for a not-null column (e.g. a pasted/imported item that
+ * never set `conditionGate`) is treated the same as the key being absent —
+ * the key is skipped so Postgres's column default applies — instead of
+ * being forwarded as a literal null, which would violate the not-null
+ * constraint and fail the whole batch. Nullable columns still accept an
+ * explicit null (e.g. clearing `url`).
  */
 function toRow(input: OpportunityInput): Record<string, unknown> {
     const row: Record<string, unknown> = {};
     for (const key of Object.keys(input) as (keyof OpportunityInput)[]) {
           if (input[key] === undefined) continue;
           if (!(key in COLUMN_MAP)) continue;
+          if (input[key] === null && !NULLABLE_COLUMNS.has(key)) continue;
           row[COLUMN_MAP[key]] = input[key];
     }
     return row;
